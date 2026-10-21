@@ -1,5 +1,50 @@
 # pybaiduphoto
 
+## Complete metadata access from the CLI
+
+Commands operate on complete datasets. API cursors and pagination are handled
+internally; there is no page number or cursor argument to manage.
+The transport reads album contents in configurable batches (`page_size`, default
+100); this is an implementation setting and does not limit the exported dataset.
+
+```powershell
+uv sync
+# Export complete raw metadata for every photo/video in the main library.
+uv run baiduphoto export --output .local/photos.jsonl
+# List every album; list every file in one album.
+uv run baiduphoto list --kind Album
+uv run baiduphoto list --album-id ALBUM_ID
+# Export every album AND every file belonging to those albums.
+uv run baiduphoto export --kind Album --recursive --output .local/albums.jsonl
+# The same full traversal is available for Person, Location and Thing.
+uv run baiduphoto export --kind Person --recursive --output .local/people.jsonl
+```
+
+`list` defaults to all results and returns a compact JSON array. `--raw` returns
+complete API metadata instead. Use `--limit 20` only when requesting a preview;
+this is a total result limit, not a page size. For large datasets, prefer
+`export`, which streams records to a UTF-8 JSON Lines file rather than collecting
+the whole result in memory or printing it to the terminal.
+
+Without `--recursive`, each export line is an unchanged metadata object from
+the API's list response, including all fields returned by that endpoint. This
+does not request extra EXIF or image bytes. `--album-id` exports all media in one
+album; `--kind` selects the entire Item/Album/Person/Location/Thing collection.
+`Item` already means all main-library photos/videos and needs no recursion flag.
+
+With `--recursive`, each line wraps the unchanged object as
+`{"type": "Album", "metadata": {...}}` or
+`{"type": "Item", "parent": {"type": "Album", "id": "..."}, "metadata": {...}}`.
+Both the outer collection and every contained file collection are consumed to
+completion. Membership is preserved when a file belongs to multiple containers;
+the completion summary separately counts unique media and their total bytes.
+
+Raw metadata can include location, face/classification fields and signed
+thumbnail URLs when the API supplies them. Exports are private local artifacts,
+ignored by Git. No thumbnail or original-media URL is fetched by `export`.
+An interrupted/failed export remains `.partial`; the final filename appears only
+after every request succeeds. Existing outputs are not overwritten.
+
 ## Maintained inspection tools
 
 This checkout adds a metadata-only CLI while retaining the original Python API.
@@ -72,6 +117,7 @@ Validation:
 ```powershell
 uv run pytest -q
 uv run ruff check pybaiduphoto/API.py pybaiduphoto/General.py pybaiduphoto/OnlineItem.py pybaiduphoto/Requests.py pybaiduphoto/cli.py pybaiduphoto/config.py pybaiduphoto/pagination.py pybaiduphoto/planning.py tests
+uv run ruff check pybaiduphoto/exporting.py pybaiduphoto/Album.py
 uv build
 ```
 

@@ -1,6 +1,5 @@
 import logging
 from .OnlineItem import OnlineItem
-from .General import getAllItemsBySinglePageFunction
 from .apiObject import apiObject
 
 
@@ -99,8 +98,8 @@ class Album(apiObject):
         data = {
             "cursor": cursor,
             "album_id": self.info["album_id"],
+            "limit": self.req.config["page_size"],
             # "need_amount": "1",
-            # "limit": "100",
             # "passwd": "",
         }
         url = "https://photo.baidu.com/youai/album/v1/listfile"
@@ -166,18 +165,17 @@ class Album(apiObject):
         if r["errno"] == 0:
             self.info["title"] = newName
 
-    def setNotice(self,notice):
+    def setNotice(self, notice):
         url = "https://photo.baidu.com/youai/album/v1/setnotice"
         params = {
-            'clienttype': '70',
-            'album_id': self.getID(),
-            'tid': self._getTID(),
-            'notice': notice,
+            "clienttype": "70",
+            "album_id": self.getID(),
+            "tid": self._getTID(),
+            "notice": notice,
         }
-        r = self.req.getReqJson(url=url,params=params)
-        return self 
-    
+        self.req.getReqJson(url=url, params=params)
+        return self
 
-    def __repr__(self)->str:
-        prt = f"Album({self.getName()},{self.getID()})"  
+    def __repr__(self) -> str:
+        prt = f"Album({self.getName()},{self.getID()})"
         return prt

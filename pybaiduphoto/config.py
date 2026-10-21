@@ -14,4 +14,6 @@ def load_config(path=None):
         raise ValueError("timeout_seconds must be positive")
     if float(config["page_delay_seconds"]) < 0:
         raise ValueError("page_delay_seconds must be non-negative")
+    if not isinstance(config["page_size"], int) or not 1 <= config["page_size"] <= 100:
+        raise ValueError("page_size must be an integer between 1 and 100")
     return config

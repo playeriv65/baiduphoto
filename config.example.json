@@ -1,5 +1,6 @@
 {
   "cookies_file": ".local/cookies.json",
   "timeout_seconds": 30,
-  "page_delay_seconds": 0.25
+  "page_delay_seconds": 0.25,
+  "page_size": 100
 }

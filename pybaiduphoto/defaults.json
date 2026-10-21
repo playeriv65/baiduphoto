@@ -3,6 +3,7 @@
   "home_path": "/photo/web/home",
   "timeout_seconds": 30,
   "page_delay_seconds": 0.25,
+  "page_size": 100,
   "clienttype": "70",
   "cookies_file": ".local/cookies.json",
   "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",

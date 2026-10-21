@@ -12,3 +12,7 @@
 - Run the checks documented in README before committing.
 - The upstream repository is public. Review staged content for private data
   before publishing; do not publish live verification output.
+- CLI list/export operations hide API cursors and consume all pages by default.
+  Preserve complete API object fields in raw exports; keep compact inventories
+  available for existing offline plans. Recursive exports must retain membership
+  when one file belongs to multiple containers.

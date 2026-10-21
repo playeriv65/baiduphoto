@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import sys
-import time
 from urllib.parse import urlsplit
 
 import requests
@@ -16,6 +15,7 @@ from .Album import Album
 from .Requests import PhotoError
 from .config import load_config
 from .pagination import iter_pages
+from .exporting import export_metadata
 
 
 def load_cookies(path):
@@ -62,19 +62,12 @@ def metadata(item):
     }
 
 
-def source(api, kind, album_id, delay):
-    fetch = (
+def source(api, kind, album_id):
+    return (
         Album({"album_id": album_id}, api.req).get_sub_1page
         if album_id
         else (lambda cursor=None: api.get_self_1page(kind, cursor=cursor))
     )
-
-    def page(cursor=None):
-        if cursor is not None:
-            time.sleep(delay)
-        return fetch(cursor=cursor)
-
-    return page
 
 
 def doctor(api):
@@ -158,14 +151,38 @@ def main():
     sub.add_parser(
         "doctor", help="Test list, pagination, album contents and link resolution"
     )
-    listing = sub.add_parser("list", help="List a bounded set of objects")
+    listing = sub.add_parser(
+        "list", help="List all objects, automatically following all API cursors"
+    )
     listing.add_argument(
         "--kind",
         choices=["Item", "Album", "Person", "Location", "Thing"],
         default="Item",
     )
-    listing.add_argument("--limit", type=int, default=20)
+    listing.add_argument(
+        "--limit", type=int, help="Return only the first N objects; default: all"
+    )
+    listing.add_argument(
+        "--raw",
+        action="store_true",
+        help="Return complete API metadata instead of compact fields",
+    )
     listing.add_argument("--album-id")
+    export = sub.add_parser(
+        "export", help="Export complete raw metadata for all objects as JSON Lines"
+    )
+    export.add_argument(
+        "--kind",
+        choices=["Item", "Album", "Person", "Location", "Thing"],
+        default="Item",
+    )
+    export.add_argument("--album-id", help="Export all files in this album")
+    export.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Also export every file in every selected album/classification",
+    )
+    export.add_argument("--output", required=True)
     inventory = sub.add_parser(
         "inventory", help="Export all media metadata without downloading media"
     )
@@ -181,6 +198,14 @@ def main():
     plan.add_argument("--name-contains", default="")
     plan.add_argument("--media", choices=["all", "photo", "video"], default="all")
     args = parser.parse_args()
+    if getattr(args, "album_id", None) and getattr(args, "kind", "Item") != "Item":
+        parser.error("--album-id selects media files and requires --kind Item")
+    if args.command == "list" and args.limit is not None and args.limit < 0:
+        parser.error("--limit must be non-negative")
+    if args.command == "export" and args.recursive and args.kind == "Item":
+        parser.error(
+            "--recursive requires Album, Person, Location or Thing; Item already exports all files"
+        )
     try:
         if args.command == "plan":
             from .planning import make_plan
@@ -201,16 +226,29 @@ def main():
         if args.command == "doctor":
             emit(doctor(api))
         elif args.command == "list":
-            if args.limit < 0:
-                raise ValueError("limit must be non-negative")
             items = iter_pages(
-                source(api, args.kind, args.album_id, config["page_delay_seconds"]),
+                source(api, args.kind, args.album_id),
                 args.limit,
+                delay=config["page_delay_seconds"],
             )
-            emit([metadata(item) for item in items])
+            emit([item.info if args.raw else metadata(item) for item in items])
+        elif args.command == "export":
+            items = iter_pages(
+                source(api, args.kind, args.album_id),
+                delay=config["page_delay_seconds"],
+            )
+            emit(
+                export_metadata(
+                    items,
+                    args.output,
+                    kind=args.kind,
+                    recursive=args.recursive,
+                    delay=config["page_delay_seconds"],
+                )
+            )
         else:
             items = iter_pages(
-                source(api, "Item", args.album_id, config["page_delay_seconds"])
+                source(api, "Item", args.album_id), delay=config["page_delay_seconds"]
             )
             emit(
                 export_inventory(
