@@ -25,8 +25,9 @@ class OnlineItem(apiObject):
             "cursor": pageInfo["cursor"],
         }
 
-    def getContent_byRequest(self):
-        dlink = self.info.get('dlink',None) 
+    def get_download_link(self):
+        """Resolve a signed URL without transferring media bytes."""
+        dlink = self.info.get("dlink", None)
 
         if dlink is None:
             res = self.req.getReqJson(
@@ -37,15 +38,24 @@ class OnlineItem(apiObject):
                     "fsid": self.info["fsid"],
                 },
             )
-            dlink = res.get("dlink",None) 
+            dlink = res.get("dlink", None)
 
             if dlink is None:
                 raise Exception(f"cannot find 'dlink' of {str(self)}")
 
+        return dlink
+
+    def getContent_byRequest(self):
+        dlink = self.get_download_link()
         req = self.req.get(dlink)
         return req.content
 
-    def download(self, DirPath:str|None = None, fileName:str|None = None, isCheckMd5:bool=True):
+    def download(
+        self,
+        DirPath: str | None = None,
+        fileName: str | None = None,
+        isCheckMd5: bool = True,
+    ):
         if DirPath is None:
             DirPath = os.getcwd()
         if fileName is None:
@@ -76,7 +86,6 @@ class OnlineItem(apiObject):
         r = self.req.getReqJson(url, params=params)
         return r
 
-
     def get_fsid(self):
         if "fsid" in self.info:
             return str(self.info["fsid"])
@@ -104,7 +113,7 @@ class OnlineItem(apiObject):
 
     def getModificationDate(self):
         return self.info["mtime"]
-    
+
     def __repr__(self):
-        prt = f'Item({self.getName()},{self.getID()})'
+        prt = f"Item({self.getName()},{self.getID()})"
         return prt

@@ -12,6 +12,7 @@ from .cooperation import muyangren907_shoot_time
 
 # import js2py
 from .Requests import Requests
+from .pagination import iter_pages
 
 
 def getAllItemsBySinglePageFunction(SinglePageFunc, max=-1):
@@ -19,42 +20,11 @@ def getAllItemsBySinglePageFunction(SinglePageFunc, max=-1):
     # def SinglePageFunc(cursor=None) -> dict:
     #     return { 'items':[] , "has_more":True/False, "cursor"  }
     # ----------------------------------------------------------------
-    cursor = None
-    r = []
-    while True:
-        page = SinglePageFunc(cursor=cursor)
-        r += page["items"]
-        if page["has_more"]:
-            cursor = page["cursor"]
-            if max > 0:
-                if len(r) >= max:
-                    break
-        else:
-            break
-    if max <= 0:
-        return r
-    else:
-        return r[:max]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return list(iter_pages(SinglePageFunc, limit=max if max > 0 else None))
 
 
 class General:
-    def __init__(self, req:Requests):
+    def __init__(self, req: Requests):
         self.req = req
 
     @staticmethod
@@ -148,7 +118,7 @@ class General:
             "rtype": "1",
             "content-md5": fileFull["md5"],
             "ctype": "11",
-            "media_info": fileFull["media_info"]
+            "media_info": fileFull["media_info"],
             #           'media_info': 'QD1xoOX.....'
         }
         logging.debug("upload_step3,postData={}".format(data))
@@ -215,7 +185,7 @@ class General:
         funcS = (
             cls.funcS
         )  # fun_s = js2py.eval_js(sign2); notice to import js2py and in requirements
-        sign = base64.encodebytes(funcS(sign3, sign1).encode("latin1")).decode()
+        sign = base64.b64encode(funcS(sign3, sign1).encode("latin1")).decode()
         return sign
 
     def batchDonwload_precondition(self):
@@ -235,7 +205,9 @@ class General:
         fsid_list = [i.get_fsid() for i in items]
         if zipname is None:
             now = datetime.datetime.now()
-            zipname = now.strftime("【一刻相册】%H时%M分-批量下载 {} 项.zip").format(len(fsid_list))
+            zipname = now.strftime("【一刻相册】%H时%M分-批量下载 {} 项.zip").format(
+                len(fsid_list)
+            )
         params = {
             "clienttype": 70,
             "fsid_list": "[{}]".format(",".join(fsid_list)),

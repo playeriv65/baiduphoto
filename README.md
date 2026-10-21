@@ -1,4 +1,81 @@
 # pybaiduphoto
+
+## Maintained inspection tools
+
+This checkout adds a metadata-only CLI while retaining the original Python API.
+Use Python 3.10+ and [uv](https://docs.astral.sh/uv/):
+
+```powershell
+uv sync
+uv run baiduphoto doctor
+uv run baiduphoto list --kind Album --limit 20
+uv run baiduphoto list --album-id ALBUM_ID --limit 20
+uv run baiduphoto inventory --output .local/inventory.jsonl
+uv run baiduphoto inventory --album-id ALBUM_ID --output .local/album.jsonl
+uv run baiduphoto plan --inventory .local/inventory.jsonl --output .local/plan.jsonl --destination D:/photo-backup
+uv run baiduphoto plan --inventory .local/inventory.jsonl --output .local/videos.jsonl --destination D:/photo-backup --media video
+```
+
+Run from the repository directory. Save cookies from your own authenticated
+`https://photo.baidu.com` session in `.local/cookies.json`. Supported formats are
+an array of browser/CDP cookies (preferred, preserving domain/path/security) or
+a JSON object mapping cookie names to values. Automatic browser database
+decryption is intentionally not required; modern Chrome encryption can prevent
+older `browser_cookie3` workflows from working. Refresh this local file when
+the session expires. Cookies and exports are private and ignored by Git.
+
+`--cookies PATH` and `--config PATH` are global options placed before the
+subcommand. `BAIDUPHOTO_CONFIG` can also point to a JSON configuration file.
+See `config.example.json` and `pybaiduphoto/defaults.json`. Do not put secrets
+in either committed file. CLI output is UTF-8 JSON; progress goes to stderr.
+
+`doctor` tests all five list types, the second media page, first-page album
+contents, single-file link resolution and ZIP link resolution. Resolving a
+link does not request its media payload. A successful check does not establish
+that the eventual CDN transfer, original-quality preservation or checksum
+verification will succeed. Upload, delete, rename, import and download payload
+operations are not exercised by this CLI.
+
+`inventory` follows cursors, deduplicates file IDs and fails on stalled cursors.
+It writes JSON Lines containing IDs, filenames, checksums, byte sizes and times;
+signed URLs, face/location metadata and cookies are excluded. A failed export
+keeps a `.partial` file, and only a successful scan produces the requested final
+filename. Existing outputs are not overwritten. A scan describes the library
+while it is being read, not an atomic snapshot if another device changes it.
+
+`plan` runs entirely offline. It supports filename substring and photo/video
+filters, calculates total bytes and assigns Windows-safe paths with an ID prefix
+to avoid duplicate-name collisions. It creates the plan only; it does not create
+the media destination or transfer files. Keep inventories and plans in `.local/`.
+
+All CLI network commands construct `API(..., read_only=True)`. The transport
+allows only known inspection endpoints (including the album listing POST) and
+blocks media URLs and cloud mutations before a request. The original library
+keeps `read_only=False` for compatibility. Callers can explicitly opt in:
+
+```python
+from pybaiduphoto import API
+from pybaiduphoto.cli import load_cookies
+
+api = API(load_cookies('.local/cookies.json'), read_only=True)
+page = api.get_self_1page('Item')
+url = page['items'][0].get_download_link()  # Metadata only; signed URL is private.
+```
+
+HTTP requests have bounded timeouts, explicit HTTP/API errors and token parsing
+independent of template field order. API cookies/tokens are not forwarded to
+external media hosts. Legacy upload/download/mutation functions remain available
+through the library, but are outside the verified read-only workflow.
+
+Validation:
+
+```powershell
+uv run pytest -q
+uv run ruff check pybaiduphoto/API.py pybaiduphoto/General.py pybaiduphoto/OnlineItem.py pybaiduphoto/Requests.py pybaiduphoto/cli.py pybaiduphoto/config.py pybaiduphoto/pagination.py pybaiduphoto/planning.py tests
+uv build
+```
+
+## Original API documentation
 一刻相册 API
 
 

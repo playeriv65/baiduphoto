@@ -1,70 +1,96 @@
+"""Bounded HTTP transport with explicit API errors and optional read-only mode."""
+
+import re
+from urllib.parse import urlsplit
+
 import requests
-import logging
+from .config import load_config
 
 
-"""
-
-Requests 是python requests的一个简单包装，主要是用于统一cookies和请求参数的作用。
-req.get() 相当于 requests.get()
-req.getReqJson() 相当于 requests.get().json()
-...
-
-
-"""
+class PhotoError(RuntimeError):
+    """A sanitized error that never includes cookies or signed URLs."""
 
 
 class Requests:
-    def __init__(self, cookies, proxies=None):
+    def __init__(self, cookies, proxies=None, *, read_only=False, config=None):
+        self.config = load_config()
+        self.config.update(config or {})
         self.cookies = cookies
-
+        self.proxies = proxies
+        self.read_only = read_only
+        self.bdstoken = None
+        self.session = requests.Session()
+        self.session.cookies.update(cookies)
         self.headers = {
-            "Connection": "keep-alive",
-            "sec-ch-ua": '" Not A;Brand";v="99", "Chromium";v="99", "Google Chrome";v="99"',
             "Accept": "application/json, text/plain, */*",
             "X-Requested-With": "XMLHttpRequest",
-            "sec-ch-ua-mobile": "?0",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36",
-            "sec-ch-ua-platform": '"macOS"',
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Dest": "empty",
-            "Referer": "https://photo.baidu.com/photo/web/home",
-            "Accept-Language": "zh-CN,zh;q=0.9,zh-TW;q=0.8,en;q=0.7",
+            "User-Agent": self.config["user_agent"],
+            "Referer": self.config["base_url"] + self.config["home_path"],
         }
 
-        self.proxies = proxies
-        #
-        self.bdstoken = None
-
     def get_proxies(self):
-        if self.proxies is None:
-            r = {}
-        else:
-            r = dict(self.proxies)
-        # print(type(r),r)
-        return r
+        return dict(self.proxies or {})
+
+    def _request(self, method, url, *, api=True, **kwargs):
+        parts = urlsplit(url)
+        origin = urlsplit(self.config["base_url"])
+        same_origin = (parts.scheme, parts.netloc) == (origin.scheme, origin.netloc)
+        path = parts.path
+        if self.read_only and (
+            not same_origin
+            or path not in self.config["read_paths"]
+            or (
+                method != "GET"
+                and not (method == "POST" and path == "/youai/album/v1/listfile")
+            )
+        ):
+            raise PhotoError("Operation blocked by read-only mode")
+        if api and same_origin:
+            params = dict(kwargs.pop("params", None) or {})
+            params.setdefault("bdstoken", self.get_bdstoken_Cache())
+            params.setdefault("clienttype", self.config["clienttype"])
+            kwargs["params"] = params
+        kwargs.setdefault("timeout", self.config["timeout_seconds"])
+        session = self.session if same_origin else requests
+        try:
+            response = session.request(
+                method,
+                url,
+                headers=self.headers
+                if same_origin
+                else {"User-Agent": self.headers["User-Agent"]},
+                proxies=self.get_proxies(),
+                allow_redirects=not same_origin,
+                **kwargs,
+            )
+            response.raise_for_status()
+        except requests.HTTPError as error:
+            status = (
+                error.response.status_code if error.response is not None else "unknown"
+            )
+            raise PhotoError(f"HTTP {status} from {parts.hostname}{path}") from None
+        except requests.RequestException:
+            raise PhotoError(
+                "HTTP request failed; check connectivity and session"
+            ) from None
+        if response.is_redirect:
+            raise PhotoError("Unexpected redirect; refresh your session")
+        return response
+
+    @staticmethod
+    def parse_bdstoken(text):
+        match = re.search(r"['\"]?bdstoken['\"]?\s*:\s*['\"]([^'\"]+)['\"]", text)
+        if not match:
+            raise PhotoError(
+                "Login token missing; refresh cookies from the logged-in photo page"
+            )
+        return match.group(1)
 
     def get_bdstoken(self):
-        url = "https://photo.baidu.com/photo/web/home"
-        response = requests.get(
-            url, proxies=self.get_proxies(), cookies=self.cookies, headers=self.headers
+        response = self._request(
+            "GET", self.config["base_url"] + self.config["home_path"], api=False
         )
-        d = None
-        for l in response.text.split("\n"):
-            if "templateData" in l:
-                d = l
-                break
-        if d is None:
-            logging.error("can not get bdstoken")
-            return
-        return (
-            l.split("=")[1]
-            .split(";")[0]
-            .split(",")[0]
-            .split(":")[1]
-            .replace("'", "")
-            .strip()
-        )
+        return self.parse_bdstoken(response.text)
 
     def get_bdstoken_Cache(self):
         if self.bdstoken is None:
@@ -72,47 +98,24 @@ class Requests:
         return self.bdstoken
 
     def get(self, url, **kwargs):
-        if "params" in kwargs:
-            kwargs["params"]["bdstoken"] = self.get_bdstoken_Cache()
-        else:
-            kwargs["params"] = {"bdstoken": self.get_bdstoken_Cache()}
-        req = requests.get(
-            url=url,
-            proxies=self.get_proxies(),
-            cookies=self.cookies,
-            headers=self.headers,
-            **kwargs
-        )
-        return req
+        return self._request("GET", url, **kwargs)
 
     def post(self, url, **kwargs):
-        if "params" in kwargs:
-            kwargs["params"]["bdstoken"] = self.get_bdstoken_Cache()
-        else:
-            kwargs["params"] = {"bdstoken": self.get_bdstoken_Cache()}
-        req = requests.post(
-            url=url,
-            proxies=self.get_proxies(),
-            cookies=self.cookies,
-            headers=self.headers,
-            **kwargs
-        )
-        return req
+        return self._request("POST", url, **kwargs)
+
+    @staticmethod
+    def _json(response):
+        try:
+            data = response.json()
+        except ValueError:
+            raise PhotoError("Expected API JSON; refresh your session") from None
+        if not isinstance(data, dict) or data.get("errno") != 0:
+            errno = data.get("errno") if isinstance(data, dict) else None
+            raise PhotoError(f"Baidu Photo API failed (errno={errno})")
+        return data
 
     def getReqJson(self, url, **kwargs):
-        data = self.get(url, **kwargs).json()
-        if data["errno"] == 0:
-            return data
-        else:
-            logging.error("request return error, return = {}".format(data))
-            return data
-        return
+        return self._json(self.get(url, **kwargs))
 
     def postReqJson(self, url, **kwargs):
-        data = self.post(url, **kwargs).json()
-        if data["errno"] == 0:
-            return data
-        else:
-            logging.error("request return error, return = {}".format(data))
-            return data
-        return
+        return self._json(self.post(url, **kwargs))
