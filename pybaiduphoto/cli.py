@@ -66,7 +66,7 @@ def source(api, kind, album_id):
     return (
         Album({"album_id": album_id}, api.req).get_sub_1page
         if album_id
-        else (lambda cursor=None: api.get_self_1page(kind, cursor=cursor))
+        else (lambda cursor=None: api.get_self_1page(kind, cursor=cursor, stable=True))
     )
 
 

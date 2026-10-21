@@ -78,8 +78,10 @@ class API:
         else:
             return table[name]
 
-    def get_self_1page(self, typeName, cursor=None) -> dict:
+    def get_self_1page(self, typeName, cursor=None, *, stable=False) -> dict:
         cls = self.getObjectClass(typeName)
+        if stable and typeName == "Item":
+            return cls.get_self_1page(req=self.req, cursor=cursor, stable=True)
         return cls.get_self_1page(req=self.req, cursor=cursor)
 
     def get_SinglePage(self, cursor=None) -> dict:

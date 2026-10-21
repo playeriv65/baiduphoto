@@ -10,15 +10,17 @@ class OnlineItem(apiObject):
     #     self.req = req
 
     @classmethod
-    def get_self_1page(cls, req, cursor=None):
+    def get_self_1page(cls, req, cursor=None, *, stable=False):
         params = {
             "cursor": cursor,
             #     'need_thumbnail':1,
             "need_filter_hidden": 0,
         }
-        pageInfo = req.getReqJson(
-            url="https://photo.baidu.com/youai/file/v1/list", params=params
-        )
+        url = "https://photo.baidu.com/youai/file/v1/list"
+        if stable:
+            url = req.config["base_url"] + req.config["metadata_list_path"]
+            params["sort_field"] = req.config["metadata_sort_field"]
+        pageInfo = req.getReqJson(url=url, params=params)
         return {
             "items": [cls(i, req) for i in pageInfo["list"]],
             "has_more": pageInfo["has_more"] == 1,

@@ -4,6 +4,11 @@
 
 Commands operate on complete datasets. API cursors and pagination are handled
 internally; there is no page number or cursor argument to manage.
+Main-library CLI reads use the official recent-upload endpoint ordered by
+creation time. The legacy shooting-time list showed inconsistent membership
+between scans, including files still accessible through album listings; the
+low-level API retains that route for compatibility. Neither route is an atomic
+snapshot while another device changes the library.
 The transport reads album contents in configurable batches (`page_size`, default
 100); this is an implementation setting and does not limit the exported dataset.
 

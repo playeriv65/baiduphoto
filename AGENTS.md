@@ -16,3 +16,6 @@
   Preserve complete API object fields in raw exports; keep compact inventories
   available for existing offline plans. Recursive exports must retain membership
   when one file belongs to multiple containers.
+- Bulk CLI media reads use the creation-time recent-upload endpoint. The legacy
+  shooting-time endpoint returned inconsistent membership across live scans.
+  Keep its low-level compatibility route separate from the CLI bulk source.

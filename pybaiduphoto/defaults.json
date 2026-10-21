@@ -7,5 +7,21 @@
   "clienttype": "70",
   "cookies_file": ".local/cookies.json",
   "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-  "read_paths": ["/photo/web/home", "/youai/file/v1/list", "/youai/file/v2/download", "/youai/file/v1/batchdownloadvariable", "/youai/file/v1/batchdownload", "/youai/album/v1/list", "/youai/album/v1/detail", "/youai/album/v1/listfile", "/youai/album/v1/search", "/youai/iclass/person/v2/list", "/youai/iclass/tag/v1/list", "/youai/iclass/index/v1/search"]
+  "read_paths": [
+    "/photo/web/home",
+    "/youai/file/v1/list",
+    "/youai/file/v1/listrecent",
+    "/youai/file/v2/download",
+    "/youai/file/v1/batchdownloadvariable",
+    "/youai/file/v1/batchdownload",
+    "/youai/album/v1/list",
+    "/youai/album/v1/detail",
+    "/youai/album/v1/listfile",
+    "/youai/album/v1/search",
+    "/youai/iclass/person/v2/list",
+    "/youai/iclass/tag/v1/list",
+    "/youai/iclass/index/v1/search"
+  ],
+  "metadata_list_path": "/youai/file/v1/listrecent",
+  "metadata_sort_field": "ctime"
 }

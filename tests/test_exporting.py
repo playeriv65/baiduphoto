@@ -9,7 +9,7 @@ import pytest
 from pybaiduphoto import cli
 from pybaiduphoto.Album import Album
 from pybaiduphoto.OnlineItem import OnlineItem
-from pybaiduphoto.Requests import PhotoError
+from pybaiduphoto.Requests import PhotoError, Requests
 from pybaiduphoto.exporting import export_metadata
 from pybaiduphoto.pagination import iter_pages
 
@@ -39,6 +39,22 @@ def test_album_content_requests_use_configured_batch_size():
     assert req.postReqJson.call_args.kwargs["data"]["limit"] == 100
 
 
+def test_cli_media_source_uses_creation_time_listing():
+    req = Requests({}, read_only=True)
+    req.getReqJson = Mock(
+        return_value={"list": [photo(1).info], "has_more": 0, "cursor": None}
+    )
+    OnlineItem.get_self_1page(req, stable=True)
+    call = req.getReqJson.call_args.kwargs
+    assert call["url"].endswith("/youai/file/v1/listrecent")
+    assert call["params"]["sort_field"] == "ctime"
+    assert "/youai/file/v1/listrecent" in req.config["read_paths"]
+    OnlineItem.get_self_1page(req)
+    call = req.getReqJson.call_args.kwargs
+    assert call["url"].endswith("/youai/file/v1/list")
+    assert "sort_field" not in call["params"]
+
+
 def setup_cli(monkeypatch, argv, fetch):
     monkeypatch.setattr("sys.argv", ["baiduphoto", *argv])
     monkeypatch.setattr(
@@ -51,7 +67,7 @@ def setup_cli(monkeypatch, argv, fetch):
     monkeypatch.setattr(cli, "API", lambda *args, **kwargs: api)
 
 
-def media_pages(kind, cursor=None):
+def media_pages(kind, cursor=None, *, stable=False):
     pages = {
         None: {
             "items": [photo(i) for i in range(1, 101)],
@@ -80,6 +96,7 @@ def test_list_defaults_to_all_pages(monkeypatch, capsys):
     assert len(result) == 250
     assert result[-1]["fsid"] == "250"
     assert fetch.call_count == 3
+    assert all(call.kwargs["stable"] is True for call in fetch.call_args_list)
 
 
 def test_list_limit_is_an_explicit_preview(monkeypatch, capsys):
